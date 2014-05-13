@@ -5,6 +5,9 @@
 					   minWidth="800" minHeight="600" backgroundColor="#424242" contentBackgroundColor="#424242">
 	<fx:Script>
 		<![CDATA[
+			import com.github.hyqhyq3.Exporter;
+			import com.github.hyqhyq3.ZeroPadded;
+			
 			import mx.collections.ArrayList;
 			import mx.graphics.codec.PNGEncoder;
 			import mx.utils.StringUtil;
@@ -83,7 +86,12 @@
 					matrix.translate(-offsetX - mcBounds.left, -offsetY - mcBounds.top);
 					bd.draw(items[i], matrix);
 					images.addItem({bitmap:bd, name:mc.name});
-					movieClips[mc.name].push(bd);
+					movieClips[mc.name].push({
+						bitmap: bd, 
+						w: Math.ceil(mcBounds.width), 
+						h: Math.ceil(mcBounds.height), 
+						name: mc.name + ZeroPadded.uint_Zeropadded(i, 4)
+					});
 				}
 				mc.x = -mcBounds.left;
 				mc.y = -mcBounds.top;
@@ -122,121 +130,20 @@
 				exportPath = saveFile.nativePath;
 			}
 			
-			protected function calcSize(width:Number, height:Number, num:Number):Rectangle
+			protected function exportSingleFile_clickHandler(event:MouseEvent):void
 			{
-				var n:Number = 0;
-				var p:Point = new Point;
-				var row:Number = 0;
-				var col:Number = 0;
-				while(n < num)
-				{
-					if(p.y >= p.x)
-					{
-						col++;
-						p.x = p.x + width;
-					} else {
-						row++;
-						p.y = p.y + height;
-					}
-					n = col*row;
-				}
-				return new Rectangle(0, 0, col * width, row * height);
+				var name:String = file.name.split(".")[0];
+				var exporter:Exporter = new Exporter(movieClips, exportPath, true, name);
+				exporter.doExport();
 			}
+			
 			
 			protected function export_clickHandler(event:MouseEvent):void
 			{
-				var encoder:PNGEncoder = new PNGEncoder;
-				for(var name:String in movieClips)
-				{
-					var png:FileStream = new FileStream;
-					png.open(new File(exportPath + File.separator + name + ".png"), FileMode.WRITE);
-					var plistFile:FileStream = new FileStream;
-					plistFile.open(new File(exportPath + File.separator + name + ".plist"), FileMode.WRITE);
-					var bd:BitmapData = null;
-					var matrix:Matrix = new Matrix;
-					var size:Rectangle;
-					var plist:XML = new XML(<plist version="1.0"><dict/></plist>);
-					plist.dict.appendChild(<key>frames</key>);
-					var frames:XML = new XML(<dict></dict>);
-					for(var i = 0; i < movieClips[name].length; i++)
-					{
-						var frame:BitmapData = movieClips[name][i] as BitmapData;
-						if(bd == null)
-						{
-							size = calcSize(frame.width, frame.height, movieClips[name].length);
-							bd = new BitmapData(size.width, size.height, true, 0);
-						}
-						bd.draw(frame, matrix);
-						var frameXML:XML = <dict></dict>;
-						var offsetStr:String = StringUtil.substitute("{{0},{1}}", matrix.tx, matrix.ty);
-						var sizeStr:String = StringUtil.substitute("{{0},{1}}", frame.width, frame.height);
-						var rect:String = StringUtil.substitute("{{0},{1}}", offsetStr, sizeStr);
-						frameXML.appendChild(<key>sourceColorRect</key>);
-						frameXML.appendChild(<string>{rect}</string>);
-						frameXML.appendChild(<key>spriteOffset</key>);
-						frameXML.appendChild(<string>&#123;0,0&#125;</string>);
-						frameXML.appendChild(<key>spriteSize</key>);
-						frameXML.appendChild(<string>{sizeStr}</string>);
-						frameXML.appendChild(<key>spriteSourceSize</key>);
-						frameXML.appendChild(<string>{sizeStr}</string>);
-						frameXML.appendChild(<key>spriteTrimmed</key>);
-						frameXML.appendChild(<false/>);
-						frameXML.appendChild(<key>textureRect</key>);
-						frameXML.appendChild(<string>{rect}</string>);
-						frameXML.appendChild(<key>textureRotated</key>);
-						frameXML.appendChild(<false/>);		
-						
-						frames.appendChild(<key>{name}{uint_Zeropadded(i, 4)}</key>);
-						frames.appendChild(frameXML);
-						
-						
-						matrix.translate(frame.width, 0);
-						if(matrix.tx >= size.width)
-						{
-							matrix.tx = 0;
-							matrix.ty += frame.height;
-						}
-					}
-					plist.dict.appendChild(frames);
-					plist.dict.appendChild(<key>metadata</key>);
-					plist.dict.appendChild(
-						<dict>
-							<key>format</key>
-							<integer>3</integer>
-							<key>size</key>
-							<string>&#123;{size.width},{size.height}&#125;</string>
-							<key>target</key>
-							<dict>
-								<key>name</key>
-								<string>{name}.png</string>
-								<key>textureFileName</key>
-								<string>{name}</string>
-								<key>textureFileExtension</key>
-								<string>png</string>
-								<key>premultipliedAlpha</key>
-								<true/>
-							</dict>
-						</dict>);
-					
-					plistFile.writeUTFBytes(plist.toXMLString());
-					var ba:ByteArray = encoder.encode(bd);
-					png.writeBytes(ba);
-					png.close();
-				}
+				var exporter:Exporter = new Exporter(movieClips, exportPath, false);
+				exporter.doExport();
 			}
 			
-			private static const _ZEROS:String = "0000000000000000000000000000000000000000"; // 40 zeros, shorten/expand as you wish
-			
-			/*
-			* f: positive integer value
-			* z: maximum number of leading zeros of the numeric part (sign takes one extra digit)
-			*/
-			public static function uint_Zeropadded(f:uint, z:int = 0):String {
-				var result:String = f.toString();
-				while (result.length < z)
-					result = _ZEROS.substr(0, z - result.length) + result;
-				return result;
-			}
 		]]>
 	</fx:Script>
 	
@@ -283,8 +190,10 @@
 			<s:Button id="browseExportPath" label="browse export path"
 					  click="browseExportPath_clickHandler(event)"/>
 		</s:Group>
-		
-		<s:Button id="export" label="export" click="export_clickHandler(event)"
-				  enabled="{exportPath.length &gt; 0}"/>
+		<s:HGroup width="200">
+			<s:Button id="exportSingleFile" label="Export single file" click="exportSingleFile_clickHandler(event)" enabled="{exportPath.length &gt; 0}"/>
+			<s:Button id="export" label="Export" click="export_clickHandler(event)"
+					  enabled="{exportPath.length &gt; 0}"/>
+		</s:HGroup>
 	</s:Group>
 </s:WindowedApplication>
