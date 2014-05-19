@@ -94,6 +94,7 @@ package com.github.hyqhyq3
 				frame.spriteTrimmed = false;
 				frame.textureRect = "{{" + data.fit.x + "," + data.fit.y + "},{" + data.w + "," + data.h + "}}";
 				frame.textureRotated = false;
+				frame.aliases = [];
 				plist.frames[data.name] = frame;
 			}
 			plist.metadata = {
@@ -124,6 +125,15 @@ package com.github.hyqhyq3
 				if(v.key)
 				{
 					v.xml.appendChild(<key>{v.object}</key>);
+				}
+				else if(v.object is Array)
+				{
+					var array:XML = <array/>;
+					v.xml.appendChild(array);
+					for each(var value:String in v.object)
+					{
+						nodes.push({xml:array, object: value});
+					}
 				}
 				else if(typeof v.object == "object")
 				{
